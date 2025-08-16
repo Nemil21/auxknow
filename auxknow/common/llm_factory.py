@@ -1,6 +1,7 @@
 from openai import OpenAI
-from .printer import Printer
+
 from .constants import Constants
+from .printer import Printer
 
 
 class LLMFactory:

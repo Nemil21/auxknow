@@ -6,6 +6,7 @@ defaults, and configuration updates.
 """
 
 from pydantic import BaseModel
+
 from ..common.constants import Constants
 from ..common.printer import Printer
 
@@ -39,7 +40,6 @@ class AuxKnowConfig(BaseModel):
     performance_logging_enabled: bool = Constants.DEFAULT_PERFORMANCE_LOGGING_ENABLED
     test_mode: bool = Constants.DEFAULT_TEST_MODE_ENABLED
     enable_reasoning: bool = Constants.DEFAULT_ENABLE_REASONING
-
 
     def update(self, config: dict) -> None:
         """Update configuration with new values.

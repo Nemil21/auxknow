@@ -11,13 +11,16 @@ License: AGPLv3
 """
 
 import os
+from typing import Optional
 from uuid import uuid4
+
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
+
 from ..common.constants import Constants
-from ..common.printer import Printer
 from ..common.custom_errors import AuxKnowMemoryException
 from ..common.models import AuxKnowMemoryVectorStore
+from ..common.printer import Printer
 
 
 class AuxKnowMemory:
@@ -34,7 +37,7 @@ class AuxKnowMemory:
 
     def __init__(
         self,
-        openai_api_key: str = None,
+        openai_api_key: Optional[str] = None,
         verbose=Constants.DEFAULT_VERBOSE_ENABLED,
         session_id: str = str(uuid4()),
     ):

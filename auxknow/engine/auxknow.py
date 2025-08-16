@@ -12,28 +12,26 @@ License: AGPLv3
 import os
 import re
 import sys
-import json
-import warnings
 import traceback
-from uuid import uuid4
-from typing import Generator, Optional, Union
+import warnings
 from collections.abc import Callable
+from typing import Generator, Optional, Union
+from uuid import uuid4
+
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict
 from openai import OpenAI
+from pydantic import BaseModel, ConfigDict
+
 from ..common.constants import Constants, SupportedAIModel
-from ..common.printer import Printer
-from ..common.performance import log_performance
-from ..common.stream_processor import StreamProcessor
-from ..common.models import AuxKnowAnswer, AuxKnowAnswerPreparation
+from ..common.custom_errors import AuxKnowErrorCodes, SessionClosedError
 from ..common.llm_factory import LLMFactory
-from ..common.custom_errors import (
-    SessionClosedError,
-    AuxKnowErrorCodes,
-)
-from .auxknow_memory import AuxKnowMemory
-from .auxknow_config import AuxKnowConfig
+from ..common.models import AuxKnowAnswer, AuxKnowAnswerPreparation
+from ..common.performance import log_performance
+from ..common.printer import Printer
+from ..common.stream_processor import StreamProcessor
 from ..version import AuxKnowVersion
+from .auxknow_config import AuxKnowConfig
+from .auxknow_memory import AuxKnowMemory
 
 
 class AuxKnowSession(BaseModel):
@@ -140,7 +138,7 @@ class AuxKnowSession(BaseModel):
             memory_data = Constants.MEMORY_PACKET_TEMPLATE(
                 memory_packet_id, question, answer, citations
             )
-            memory_packet = f"\n".join(memory_data)
+            memory_packet = "\n".join(memory_data)
             self.memory.update_memory(data=memory_packet)
         except:
             Printer.verbose_logger(
@@ -152,8 +150,8 @@ class AuxKnowSession(BaseModel):
 
     def _build_context_callbacks(
         self,
-        get_context_callback: Callable[[str], str] = None,
-        update_context_callback: Callable[[str, AuxKnowAnswer], None] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
+        update_context_callback: Optional[Callable[[str, AuxKnowAnswer], None]] = None,
     ) -> tuple[Callable[[str], str], Callable[[str, AuxKnowAnswer], None]]:
         """Build get_context_callback and update_context_callback.
 
@@ -177,8 +175,8 @@ class AuxKnowSession(BaseModel):
         fast_mode=Constants.DEFAULT_FAST_MODE_ENABLED,
         enable_reasoning=Constants.DEFAULT_ENABLE_REASONING,
         for_citations=Constants.DEFAULT_ANSWER_MODE_FOR_CITATIONS_ENABLED,
-        get_context_callback: Callable[[str], str] = None,
-        update_context_callback: Callable[[str, AuxKnowAnswer], None] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
+        update_context_callback: Optional[Callable[[str, AuxKnowAnswer], None]] = None,
     ) -> AuxKnowAnswer:
         """Ask a question within this session to maintain context.
 
@@ -218,8 +216,8 @@ class AuxKnowSession(BaseModel):
         fast_mode=Constants.DEFAULT_FAST_MODE_ENABLED,
         enable_reasoning=Constants.DEFAULT_ENABLE_REASONING,
         for_citations=Constants.DEFAULT_ANSWER_MODE_FOR_CITATIONS_ENABLED,
-        get_context_callback: Callable[[str], str] = None,
-        update_context_callback: Callable[[str, AuxKnowAnswer], None] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
+        update_context_callback: Optional[Callable[[str, AuxKnowAnswer], None]] = None,
     ) -> Generator[AuxKnowAnswer, None, None]:
         """Ask a question within this session to maintain context with streaming response.
 
@@ -275,7 +273,7 @@ class AuxKnow:
 
     def __init__(
         self,
-        llm_factory: LLMFactory = None,
+        llm_factory: Optional[LLMFactory] = None,
         api_key: Optional[str] = None,  # Deprecated parameter
         perplexity_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None,
@@ -334,11 +332,12 @@ class AuxKnow:
             openai_api_key=openai_api_key,
         )
         self._log_feature_status()
-        self._init_ai(
-            openai_api_key=self.openai_api_key,
-            perplexity_api_key=self.perplexity_api_key,
-            llm_factory=llm_factory,
-        )
+        if self.openai_api_key is not None and self.perplexity_api_key is not None:
+            self._init_ai(
+                openai_api_key=self.openai_api_key,
+                perplexity_api_key=self.perplexity_api_key,
+                llm_factory=llm_factory,
+            )
 
     def check_llm_factory_support(self, llm_factory: LLMFactory, test_mode: bool):
         """
@@ -508,10 +507,10 @@ class AuxKnow:
         Returns:
             None
         """
-        ## TODO: check if we need a lambda here or can directly pass the instance method
-        ping_test_callback = lambda client, label: self._ping_test(
-            client=client, label=label
-        )
+
+        def ping_test_callback(client, label):
+            return self._ping_test(client=client, label=label)
+
         llm_initialized, llm = self._init_llm(
             openai_api_key,
             base_url=None,
@@ -813,8 +812,8 @@ class AuxKnow:
                 Constants.PING_TEST_RESPONSE(label, ping_test_response),
             )
 
-            if ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1:
-                Printer.print_red_message(Constants.ERROR_PING_TEST_FAILED(label=label))
+            if ping_test_response is None or ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1:
+                Printer.print_red_message(Constants.ERROR_PING_TEST_FAILED(label=label, e=""))
                 return False
 
             return True
@@ -1049,7 +1048,7 @@ class AuxKnow:
         deep_research: bool = Constants.DEFAULT_DEEP_RESEARCH_ENABLED,
         fast_mode: bool = Constants.DEFAULT_FAST_MODE_ENABLED,
         enable_reasoning: bool = Constants.DEFAULT_ENABLE_REASONING,
-        get_context_callback: Callable[[str], str] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
         answer_id=str(uuid4()),
     ) -> AuxKnowAnswerPreparation:
         """Prepare the common request parameters for ask and ask_stream.
@@ -1132,8 +1131,8 @@ class AuxKnow:
         deep_research=Constants.DEFAULT_DEEP_RESEARCH_ENABLED,
         fast_mode=Constants.DEFAULT_FAST_MODE_ENABLED,
         enable_reasoning: bool = Constants.DEFAULT_ENABLE_REASONING,
-        get_context_callback: Callable[[str], str] = None,
-        update_context_callback: Callable[[str, AuxKnowAnswer], None] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
+        update_context_callback: Optional[Callable[[str, AuxKnowAnswer], None]] = None,
     ) -> AuxKnowAnswer:
         answer_id = str(uuid4())
         """Ask a question and get an answer.
@@ -1245,8 +1244,8 @@ class AuxKnow:
         deep_research=Constants.DEFAULT_DEEP_RESEARCH_ENABLED,
         fast_mode=Constants.DEFAULT_FAST_MODE_ENABLED,
         enable_reasoning: bool = Constants.DEFAULT_ENABLE_REASONING,
-        get_context_callback: Callable[[str], str] = None,
-        update_context_callback: Callable[[str, AuxKnowAnswer], None] = None,
+        get_context_callback: Optional[Callable[[str], str]] = None,
+        update_context_callback: Optional[Callable[[str, AuxKnowAnswer], None]] = None,
     ) -> Generator[AuxKnowAnswer, None, None]:
         answer_id = str(uuid4())
         """Ask a question and get a streaming answer.
@@ -1339,7 +1338,7 @@ class AuxKnow:
         self,
         question: str,
         existing_context: str,
-        get_context_callback: Callable[[str], str],
+        get_context_callback: Optional[Callable[[str], str]],
         override_context: bool = Constants.DEFAULT_GET_CONTEXT_PREFERENCE,
         prefer_existing_context: bool = Constants.DEFAULT_EXISTING_CONTEXT_PREFERENCE,
     ) -> str:
@@ -1440,7 +1439,7 @@ class AuxKnow:
 
     def _get_augmented_prompt(
         self, question: str, context: str, fast_mode: bool, user_prompt: str
-    ) -> tuple[str, str]:
+    ) -> str:
         """
         Get the supporting prompts for asking a question.
 
@@ -1451,7 +1450,6 @@ class AuxKnow:
             user_prompt (str): The user prompt.
 
         Returns:
-            str: The supporting prompt.
             str: The user prompt.
         """
         if not fast_mode and self.config.auto_prompt_augment:
