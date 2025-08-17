@@ -309,7 +309,9 @@ class AuxKnow:
             Constants.MESSAGE_INIT,
         )
 
-        if llm_factory:
+        # Only check llm_factory support if user explicitly provided one
+        user_provided_llm_factory = llm_factory is not None
+        if user_provided_llm_factory:
             self.check_llm_factory_support(llm_factory=llm_factory, test_mode=test_mode)
 
         self.verbose = verbose
@@ -334,12 +336,15 @@ class AuxKnow:
         )
         self._log_feature_status()
         if self.openai_api_key is not None and self.perplexity_api_key is not None:
-            if llm_factory:
-                self._init_ai(
-                    openai_api_key=self.openai_api_key,
-                    perplexity_api_key=self.perplexity_api_key,
-                    llm_factory=llm_factory,
-                )
+            # Create default LLMFactory if none provided
+            if llm_factory is None:
+                llm_factory = LLMFactory()
+            
+            self._init_ai(
+                openai_api_key=self.openai_api_key,
+                perplexity_api_key=self.perplexity_api_key,
+                llm_factory=llm_factory,
+            )
 
     def check_llm_factory_support(self, llm_factory: LLMFactory, test_mode: bool):
         """
@@ -953,11 +958,51 @@ class AuxKnow:
         """
         citations = []
         try:
-            if hasattr(response, "citations") and response.citations:
-                citations.extend(response.citations)
-        except:
-            pass
-        return list(set(citations))
+            # Debug: Print response structure to understand format
+            if self.verbose:
+                Printer.verbose_logger(
+                    self.verbose,
+                    Printer.print_light_grey_message,
+                    f"Response structure keys: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}"
+                )
+            
+            # Try multiple possible citation field locations
+            if isinstance(response, dict):
+                # Check for direct citations field
+                if 'citations' in response and response['citations']:
+                    citations.extend(response['citations'])
+                
+                # Check for citations in choices (OpenAI/Perplexity format)
+                elif 'choices' in response and response['choices']:
+                    for choice in response['choices']:
+                        if isinstance(choice, dict):
+                            # Check message level citations
+                            if 'message' in choice and isinstance(choice['message'], dict):
+                                if 'citations' in choice['message']:
+                                    citations.extend(choice['message']['citations'])
+                            # Check choice level citations
+                            if 'citations' in choice:
+                                citations.extend(choice['citations'])
+                
+                # Check for metadata with citations
+                elif 'metadata' in response and isinstance(response['metadata'], dict):
+                    if 'citations' in response['metadata']:
+                        citations.extend(response['metadata']['citations'])
+                
+                # Check for usage field which might contain citations
+                elif 'usage' in response and isinstance(response['usage'], dict):
+                    if 'citations' in response['usage']:
+                        citations.extend(response['usage']['citations'])
+                        
+        except Exception as e:
+            if self.verbose:
+                Printer.verbose_logger(
+                    self.verbose,
+                    Printer.print_red_message,
+                    f"Error extracting citations: {e}"
+                )
+        
+        return list(set(citations)) if citations else []
 
     def _get_model(
         self,
@@ -1223,7 +1268,8 @@ class AuxKnow:
                 clean_answer = "Error: Unexpected response type"
                 citations = []
             citations = citations or []
-            if len(citations) == 0:
+            # Only try to get more citations if we're not already in citation retrieval mode
+            if len(citations) == 0 and not for_citations:
                 citations_result, _ = self.get_citations(question, clean_answer)
                 citations = citations_result or []
 
