@@ -379,7 +379,9 @@ class AuxKnow:
         )
         self.openai_api_key = self._get_openai_api_key(openai_api_key)
         if self.perplexity_api_key:
-            self._validate_perplexity_api_key(self.perplexity_api_key, exit_on_failure=True)
+            self._validate_perplexity_api_key(
+                self.perplexity_api_key, exit_on_failure=True
+            )
         if self.openai_api_key:
             self._validate_openai_api_key(self.openai_api_key, exit_on_failure=True)
 
@@ -824,8 +826,13 @@ class AuxKnow:
                 Constants.PING_TEST_RESPONSE_TEMPLATE(label, ping_test_response),
             )
 
-            if not ping_test_response or ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1:
-                Printer.print_red_message(Constants.ERROR_PING_TEST_FAILED(label=label, e=""))
+            if (
+                not ping_test_response
+                or ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1
+            ):
+                Printer.print_red_message(
+                    Constants.ERROR_PING_TEST_FAILED(label=label, e="")
+                )
                 return False
 
             return True
@@ -1201,14 +1208,16 @@ class AuxKnow:
                     is_final=True,
                 )
             response = self.client.chat.completions.create(
-                messages=messages,  # type: ignore
-                model=model, stream=False
+                messages=messages, model=model, stream=False  # type: ignore
             )
 
             # Type narrowing for non-streaming response
             from openai.types.chat import ChatCompletion
+
             if isinstance(response, ChatCompletion):
-                clean_answer = self._clean_ask_response(response.choices[0].message.content or "")
+                clean_answer = self._clean_ask_response(
+                    response.choices[0].message.content or ""
+                )
                 citations = self._extract_citations_from_response(response.model_dump())  # type: ignore
             else:
                 clean_answer = "Error: Unexpected response type"
@@ -1332,8 +1341,7 @@ class AuxKnow:
                 )
                 return
             response_stream = self.client.chat.completions.create(
-                messages=messages,  # type: ignore
-                model=model, stream=True
+                messages=messages, model=model, stream=True  # type: ignore
             )
 
             for chunk in StreamProcessor.process_stream(
@@ -1352,7 +1360,9 @@ class AuxKnow:
                     citations = chunk.citations or []
                     if not citations:
                         citations_result, _ = self.get_citations(question, chunk.answer)
-                        citations = citations_result if citations_result is not None else []    
+                        citations = (
+                            citations_result if citations_result is not None else []
+                        )
 
                     final_answer = AuxKnowAnswer(
                         id=answer_id,

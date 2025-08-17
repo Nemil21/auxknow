@@ -73,7 +73,9 @@ class AuxKnowMemory:
         )
 
         self._store: AuxKnowMemoryVectorStore = AuxKnowMemoryVectorStore(
-            OpenAIEmbeddings(api_key=SecretStr(openai_api_key) if openai_api_key else None)
+            OpenAIEmbeddings(
+                api_key=SecretStr(openai_api_key) if openai_api_key else None
+            )
         )
 
         Printer.verbose_logger(

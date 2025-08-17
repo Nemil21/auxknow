@@ -19,7 +19,7 @@ install: ## Install package in development mode
 
 install-dev: ## Install package with development dependencies
 	@echo "$(YELLOW)Installing auxknow with development dependencies...$(RESET)"
-	python -m pip install -e ".[dev]"
+	python -m pip install -e ".[dev]" build twine
 
 clean: ## Clean build artifacts
 	rm -rf build/

@@ -48,6 +48,7 @@ class Constants:
     @staticmethod
     def ERROR_PING_TEST_FAILED_WITH_EXCEPTION(label: str, e: Any) -> str:
         return f"{label} ping test failed: {e}. Cannot use AuxKnow."
+
     CITATIONS_ERROR_LOG_TEMPLATE: Callable[[Any], str] = (
         lambda e: f"Error while getting citations: {str(e)}"
     )
