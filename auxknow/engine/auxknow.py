@@ -15,7 +15,7 @@ import sys
 import traceback
 import warnings
 from collections.abc import Callable
-from typing import Generator, Optional, Union
+from typing import Any, Dict, Generator, List, Optional, Union
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -92,7 +92,7 @@ class AuxKnowSession(BaseModel):
         try:
             if not self.memory:
                 Printer.verbose_logger(
-                    self.verbose,
+                    self.auxknow.verbose,
                     Printer.print_red_message,
                     Constants.MESSAGE_MEMORY_NOT_INITIALIZED,
                 )
@@ -100,7 +100,7 @@ class AuxKnowSession(BaseModel):
             return self.memory.lookup(question)
         except:
             Printer.verbose_logger(
-                self.verbose,
+                self.auxknow.verbose,
                 Printer.print_red_message,
                 Constants.MESSAGE_MEMORY_ERROR(question),
             )
@@ -119,7 +119,7 @@ class AuxKnowSession(BaseModel):
         try:
             if not self.memory:
                 Printer.verbose_logger(
-                    self.verbose,
+                    self.auxknow.verbose,
                     Printer.print_red_message,
                     Constants.MESSAGE_MEMORY_NOT_INITIALIZED,
                 )
@@ -142,7 +142,7 @@ class AuxKnowSession(BaseModel):
             self.memory.update_memory(data=memory_packet)
         except:
             Printer.verbose_logger(
-                self.verbose,
+                self.auxknow.verbose,
                 Printer.print_red_message,
                 Constants.MESSAGE_MEMORY_UPDATE_ERROR(question),
             )
@@ -309,7 +309,8 @@ class AuxKnow:
             Constants.MESSAGE_INIT,
         )
 
-        self.check_llm_factory_support(llm_factory=llm_factory, test_mode=test_mode)
+        if llm_factory:
+            self.check_llm_factory_support(llm_factory=llm_factory, test_mode=test_mode)
 
         self.verbose = verbose
         self.config = AuxKnowConfig(
@@ -333,11 +334,12 @@ class AuxKnow:
         )
         self._log_feature_status()
         if self.openai_api_key is not None and self.perplexity_api_key is not None:
-            self._init_ai(
-                openai_api_key=self.openai_api_key,
-                perplexity_api_key=self.perplexity_api_key,
-                llm_factory=llm_factory,
-            )
+            if llm_factory:
+                self._init_ai(
+                    openai_api_key=self.openai_api_key,
+                    perplexity_api_key=self.perplexity_api_key,
+                    llm_factory=llm_factory,
+                )
 
     def check_llm_factory_support(self, llm_factory: LLMFactory, test_mode: bool):
         """
@@ -376,8 +378,10 @@ class AuxKnow:
             perplexity_api_key=perplexity_api_key, api_key=api_key
         )
         self.openai_api_key = self._get_openai_api_key(openai_api_key)
-        self._validate_perplexity_api_key(self.perplexity_api_key, exit_on_failure=True)
-        self._validate_openai_api_key(self.openai_api_key, exit_on_failure=True)
+        if self.perplexity_api_key:
+            self._validate_perplexity_api_key(self.perplexity_api_key, exit_on_failure=True)
+        if self.openai_api_key:
+            self._validate_openai_api_key(self.openai_api_key, exit_on_failure=True)
 
     def _validate_perplexity_api_key(
         self,
@@ -535,12 +539,12 @@ class AuxKnow:
     def _init_llm(
         self,
         openai_api_key: str,
-        base_url: str,
+        base_url: Optional[str],
         ping_test: Callable[[OpenAI, str], bool],
         label: str,
         llm_factory: LLMFactory,
         exit_on_failure: bool = Constants.DEFAULT_EXIT_ON_LLM_INIT_FAILURE,
-    ) -> tuple[bool, OpenAI]:
+    ) -> tuple[bool, Optional[OpenAI]]:
         """
         Initialize the AuxKnow LLM.
 
@@ -564,7 +568,10 @@ class AuxKnow:
                 openai_api_key=openai_api_key, base_url=base_url
             )
 
-        llm_initialized = ping_test(client=llm_client, label=label)
+        if llm_client is None:
+            llm_initialized = False
+        else:
+            llm_initialized = ping_test(llm_client, label)
 
         if llm_initialized:
             Printer.verbose_logger(
@@ -583,7 +590,7 @@ class AuxKnow:
 
         return llm_initialized, llm_client
 
-    def _get_openai_client(self, openai_api_key: str, base_url: str):
+    def _get_openai_client(self, openai_api_key: str, base_url: Optional[str]):
         """
         Get the OpenAI client instance.
 
@@ -664,15 +671,17 @@ class AuxKnow:
                 Constants.DEFAULT_AUXKNOW_SYSTEM_PROMPT
                 + "\nIn this instance, you will be acting as a 'Query Restructurer' to fine-tune the query for better results."
             )
-            messages = [
+            messages: List[Dict[str, Any]] = [
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ]
+            if not self.llm:
+                return query
             response = self.llm.chat.completions.create(
-                messages=messages,
+                messages=messages,  # type: ignore
                 model=Constants.MODEL_GPT4O_MINI,
             )
-            restructured_query = response.choices[0].message.content
+            restructured_query = response.choices[0].message.content or query
             Printer.verbose_logger(
                 self.verbose,
                 Printer.print_light_grey_message,
@@ -753,17 +762,19 @@ class AuxKnow:
             )
             system = Constants.MODEL_ROUTER_SYSTEM_PROMPT
 
-            messages = [
+            messages: List[Dict[str, Any]] = [
                 Constants.MESSAGES_TEMPLATE(Constants.ROLE_SYSTEM, system),
                 Constants.MESSAGES_TEMPLATE(Constants.ROLE_USER, prompt),
             ]
 
+            if not self.llm:
+                return Constants.MODEL_SONAR
             response = self.llm.chat.completions.create(
-                messages=messages,
+                messages=messages,  # type: ignore
                 model=Constants.MODEL_GPT4O_MINI,
             )
 
-            model = response.choices[0].message.content
+            model = response.choices[0].message.content or Constants.MODEL_SONAR
 
             if model.lower() not in [m.model for m in supported_models]:
                 Printer.print_red_message(
@@ -787,15 +798,16 @@ class AuxKnow:
             bool: True if the ping test is successful, False otherwise.
         """
         try:
+            messages: List[Dict[str, Any]] = [
+                Constants.MESSAGES_TEMPLATE(
+                    Constants.ROLE_SYSTEM, Constants.PING_TEST_SYSTEM_PROMPT
+                ),
+                Constants.MESSAGES_TEMPLATE(
+                    Constants.ROLE_USER, Constants.PING_TEST_USER_PROMPT
+                ),
+            ]
             response = client.chat.completions.create(
-                messages=[
-                    Constants.MESSAGES_TEMPLATE(
-                        Constants.ROLE_SYSTEM, Constants.PING_TEST_SYSTEM_PROMPT
-                    ),
-                    Constants.MESSAGES_TEMPLATE(
-                        Constants.ROLE_USER, Constants.PING_TEST_USER_PROMPT
-                    ),
-                ],
+                messages=messages,  # type: ignore
                 model=(
                     Constants.MODEL_SONAR
                     if "Perplexity" in label
@@ -804,15 +816,15 @@ class AuxKnow:
                 max_tokens=Constants.PING_TEST_MAX_TOKENS,
             )
 
-            ping_test_response = response.choices[0].message.content
+            ping_test_response = response.choices[0].message.content or ""
 
             Printer.verbose_logger(
-                self.verbose,
+                bool(self.verbose),
                 Printer.print_light_grey_message,
-                Constants.PING_TEST_RESPONSE(label, ping_test_response),
+                Constants.PING_TEST_RESPONSE_TEMPLATE(label, ping_test_response),
             )
 
-            if ping_test_response is None or ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1:
+            if not ping_test_response or ping_test_response.lower().find(Constants.PING_TEST_SEARCH) == -1:
                 Printer.print_red_message(Constants.ERROR_PING_TEST_FAILED(label=label, e=""))
                 return False
 
@@ -880,18 +892,21 @@ class AuxKnow:
         """
         try:
             user_prompt = Constants.PROMPT_AUGMENT_USER_TEMPLATE(question, context)
+            messages: List[Dict[str, Any]] = [
+                Constants.MESSAGES_TEMPLATE(Constants.ROLE_USER, user_prompt),
+            ]
+            if not self.llm:
+                return ""
             response = self.llm.chat.completions.create(
                 model=Constants.DEFAULT_MODELS["prompt_augmentation"],
-                messages=[
-                    Constants.MESSAGES_TEMPLATE(Constants.ROLE_USER, user_prompt),
-                ],
+                messages=messages,  # type: ignore
                 temperature=Constants.DEFAULT_PROMPT_AUGMENTATION_TEMPERATURE,
             )
-            updated_prompt = response.choices[0].message.content
+            updated_prompt = response.choices[0].message.content or ""
             Printer.verbose_logger(
-                self.verbose,
+                bool(self.verbose),
                 Printer.print_light_grey_message,
-                Constants.MESSAGE_PROMPT_AUGMENTATION(updated_prompt),
+                Constants.MESSAGE_PROMPT_AUGMENTATION(self.config.auto_prompt_augment),
             )
             return updated_prompt
         except Exception as e:
@@ -1178,14 +1193,30 @@ class AuxKnow:
                 preparation_response.question,
             )
 
+            if not self.client:
+                return AuxKnowAnswer(
+                    id=answer_id,
+                    answer="Client not initialized",
+                    citations=[],
+                    is_final=True,
+                )
             response = self.client.chat.completions.create(
-                messages=messages, model=model, stream=False
+                messages=messages,  # type: ignore
+                model=model, stream=False
             )
 
-            clean_answer = self._clean_ask_response(response.choices[0].message.content)
-            citations = self._extract_citations_from_response(response)
+            # Type narrowing for non-streaming response
+            from openai.types.chat import ChatCompletion
+            if isinstance(response, ChatCompletion):
+                clean_answer = self._clean_ask_response(response.choices[0].message.content or "")
+                citations = self._extract_citations_from_response(response.model_dump())  # type: ignore
+            else:
+                clean_answer = "Error: Unexpected response type"
+                citations = []
+            citations = citations or []
             if len(citations) == 0:
-                citations, _ = self.get_citations(question, clean_answer)
+                citations_result, _ = self.get_citations(question, clean_answer)
+                citations = citations_result or []
 
             final_answer = AuxKnowAnswer(
                 id=answer_id,
@@ -1201,7 +1232,7 @@ class AuxKnow:
         except Exception as e:
             Printer.print_red_message(Constants.ERROR_ASK_QUESTION(e))
             return AuxKnowAnswer(
-                answer_id=answer_id,
+                id=answer_id,
                 answer=Constants.ERROR_DEFAULT,
                 citations=[],
                 is_final=True,
@@ -1292,12 +1323,21 @@ class AuxKnow:
                 preparation_response.question,
             )
 
+            if not self.client:
+                yield AuxKnowAnswer(
+                    id=answer_id,
+                    answer="Client not initialized",
+                    citations=[],
+                    is_final=True,
+                )
+                return
             response_stream = self.client.chat.completions.create(
-                messages=messages, model=model, stream=True
+                messages=messages,  # type: ignore
+                model=model, stream=True
             )
 
             for chunk in StreamProcessor.process_stream(
-                response_stream,
+                response_stream,  # type: ignore
                 citation_extractor=self._extract_citations_from_response,
                 verbose=self.verbose,
             ):
@@ -1309,9 +1349,10 @@ class AuxKnow:
                         is_final=False,
                     )
                 else:
-                    citations = chunk.citations
-                    if not citations or len(citations) == 0:
-                        citations, _ = self.get_citations(question, chunk.answer)
+                    citations = chunk.citations or []
+                    if not citations:
+                        citations_result, _ = self.get_citations(question, chunk.answer)
+                        citations = citations_result if citations_result is not None else []    
 
                     final_answer = AuxKnowAnswer(
                         id=answer_id,

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from openai import OpenAI
 
 from .constants import Constants
@@ -12,7 +14,7 @@ class LLMFactory:
     @staticmethod
     def get_openai_client(
         api_key: str, base_url=None, verbose=Constants.DEFAULT_VERBOSE_ENABLED
-    ) -> OpenAI:
+    ) -> Optional[OpenAI]:
         """Get OpenAI client instance.
 
         Args:

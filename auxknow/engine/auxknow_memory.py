@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
+from pydantic import SecretStr
 
 from ..common.constants import Constants
 from ..common.custom_errors import AuxKnowMemoryException
@@ -72,7 +73,7 @@ class AuxKnowMemory:
         )
 
         self._store: AuxKnowMemoryVectorStore = AuxKnowMemoryVectorStore(
-            OpenAIEmbeddings(api_key=openai_api_key)
+            OpenAIEmbeddings(api_key=SecretStr(openai_api_key) if openai_api_key else None)
         )
 
         Printer.verbose_logger(

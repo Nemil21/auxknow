@@ -70,7 +70,7 @@ class AuxKnowConfig(BaseModel):
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    def copy(self) -> "AuxKnowConfig":
+    def copy(self, **kwargs) -> "AuxKnowConfig":
         """Create a deep copy of the configuration.
 
         Returns:
