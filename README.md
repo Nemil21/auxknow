@@ -182,6 +182,17 @@ AuxKnow is designed to cater to a wide range of scenarios, including:
 
 # Changelog
 
+## 🚀 v0.0.22 - Smarter Search, Zero Hassle
+
+- ⚡ **Better results, faster**: Use Perplexity for rich, high‑quality search with automatic fallback to DuckDuckGo when needed.
+- 🧭 **No setup surprises**: `AuxKnowSearch` reads your settings directly from `auxknow_config.json` (provider, defaults, fallback) — no extra code required.
+- 🧰 **Do more with search**: Filter by domain, run multi‑query batches, and control content extraction (Perplexity).
+- 🧹 **Clear, helpful errors**: Actionable messages (e.g., how to install missing packages) reduce friction.
+Notes:
+- ✅ No breaking changes. Existing code keeps working.
+
+---
+
 ## 🚀 v0.0.21 - Custom Model Configuration
 
 - 🎯 **Configurable Model Selection**: Users can now customize which models are used for different tasks through JSON configuration files.

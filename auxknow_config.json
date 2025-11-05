@@ -15,5 +15,11 @@
   "enable_unibiased_reasoning": true,
   "fast_mode": true,
   "performance_logging_enabled": false,
-  "enable_reasoning": false
+  "enable_reasoning": false,
+  "search_provider": "perplexity",
+  "search_config": {
+    "max_results": 10,
+    "max_tokens_per_page": 1024,
+    "enable_fallback": true
+  }
 } 

@@ -33,6 +33,8 @@ class AuxKnowConfig(BaseModel):
         performance_logging_enabled (bool): Enables performance logging.
         enable_reasoning (bool): Enables Sonar Reasoning model mode when set to True.
         custom_models (Dict[str, str]): Custom model configuration that overrides defaults.
+        search_provider (str): Search provider to use ("perplexity" or "duckduckgo").
+        search_config (Dict[str, any]): Search-specific configuration options.
     """
 
     auto_model_routing: bool = Constants.DEFAULT_AUTO_MODEL_ROUTING_ENABLED
@@ -46,6 +48,12 @@ class AuxKnowConfig(BaseModel):
     test_mode: bool = Constants.DEFAULT_TEST_MODE_ENABLED
     enable_reasoning: bool = Constants.DEFAULT_ENABLE_REASONING
     custom_models: Dict[str, str] = Field(default_factory=lambda: {})
+    search_provider: str = "duckduckgo"
+    search_config: Dict = Field(default_factory=lambda: {
+        "max_results": 10,
+        "max_tokens_per_page": 1024,
+        "enable_fallback": True
+    })
 
     @classmethod
     def load_from_file(cls, config_file_path: str, verbose: bool = False) -> "AuxKnowConfig":
